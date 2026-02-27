@@ -2,13 +2,15 @@
 
 A backend service that identifies and consolidates customer contact information across multiple purchases on FluxKart.com.
 
+**Live:** https://bitespeed-api-ikhq.onrender.com
+
 ## Tech Stack
 
 | Layer            | Technology       |
 | ---------------- | ---------------- |
 | Runtime          | Node.js 20+      |
 | Language         | TypeScript 5     |
-| Framework        | Express.js       |
+| Framework        | Express 5        |
 | ORM              | Prisma 7         |
 | Database         | PostgreSQL 16    |
 | Validation       | Zod 4            |
@@ -24,6 +26,7 @@ bitespeed/
 ├── .github/workflows/ci.yml   # GitHub Actions CI pipeline
 ├── prisma/
 │   ├── schema.prisma           # Database schema
+│   ├── prisma.config.ts        # Prisma v7 config (CLI URL)
 │   └── seed.ts                 # Seed script
 ├── src/
 │   ├── config/                 # Env + DB configuration
@@ -32,16 +35,19 @@ bitespeed/
 │   ├── routes/                 # Express route definitions
 │   ├── services/               # Business logic
 │   ├── types/                  # Shared TypeScript types
-│   ├── utils/                  # Utilities (logger, errors, normalize)
+│   ├── utils/                  # Logger, errors, normalize, async-lock
 │   ├── validators/             # Zod validation schemas
 │   ├── app.ts                  # Express app setup
 │   └── index.ts                # Entry point
 ├── tests/
-│   ├── unit/                   # Unit tests
-│   └── integration/            # Integration tests
+│   ├── unit/                   # Unit tests (normalize, async-lock)
+│   ├── integration/            # Integration tests (needs DB)
+│   ├── smoke.ts                # Smoke tests against any live URL
+│   └── setup-env.ts            # Jest env setup (dotenv)
 ├── docker-compose.yml          # Full stack (DB + app)
 ├── docker-compose.dev.yml      # DB only (for local dev)
 ├── Dockerfile                  # Multi-stage production build
+├── eslint.config.mjs           # ESLint v10 flat config
 ├── render.yaml                 # Render Blueprint (IaC)
 └── package.json
 ```
@@ -107,21 +113,51 @@ npm run dev
 
 ### Scripts
 
-| Command                    | Description                            |
-| -------------------------- | -------------------------------------- |
-| `npm run dev`              | Start dev server with hot-reload (tsx) |
-| `npm run build`            | Compile TypeScript to `dist/`          |
-| `npm start`                | Run compiled JS (production)           |
-| `npm run lint`             | Lint source files                      |
-| `npm run lint:fix`         | Auto-fix lint issues                   |
-| `npm run format`           | Format code with Prettier              |
-| `npm test`                 | Run all tests                          |
-| `npm run test:unit`        | Run unit tests only                    |
-| `npm run test:integration` | Run integration tests (needs DB)       |
-| `npm run test:coverage`    | Run tests with coverage report         |
-| `npm run prisma:generate`  | Regenerate Prisma client               |
-| `npm run prisma:migrate`   | Run Prisma migrations                  |
-| `npm run prisma:studio`    | Open Prisma Studio (DB GUI)            |
+| Command                    | Description                                |
+| -------------------------- | ------------------------------------------ |
+| `npm run dev`              | Start dev server with hot-reload (tsx)     |
+| `npm run build`            | Compile TypeScript to `dist/`              |
+| `npm start`                | Run compiled JS (production)               |
+| `npm run lint`             | Lint source files (ESLint v10 flat config) |
+| `npm run lint:fix`         | Auto-fix lint issues                       |
+| `npm run format`           | Format code with Prettier                  |
+| `npm test`                 | Run all tests                              |
+| `npm run test:unit`        | Run unit tests only                        |
+| `npm run test:integration` | Run integration tests (needs DB)           |
+| `npm run test:smoke`       | Run smoke tests against a live URL         |
+| `npm run test:coverage`    | Run tests with coverage report             |
+| `npm run prisma:generate`  | Regenerate Prisma client                   |
+| `npm run prisma:migrate`   | Run Prisma migrations                      |
+| `npm run prisma:studio`    | Open Prisma Studio (DB GUI)                |
+
+## Testing
+
+### Unit Tests
+
+```bash
+npm run test:unit          # normalize, async-lock (no DB needed)
+```
+
+### Integration Tests
+
+```bash
+# Needs PostgreSQL running (docker-compose.dev.yml or local)
+npm run test:integration
+```
+
+### Smoke Tests (Live URL)
+
+```bash
+# Against live deployment
+npm run test:smoke -- https://bitespeed-api-ikhq.onrender.com
+
+# Against local dev server
+npm run test:smoke
+```
+
+Smoke tests use randomised data each run — safe to run against production.
+Covers all 10 scenarios: health, validation, new primary, secondary creation,
+idempotency, email-only/phone-only lookup, merge, case-insensitive email, numeric phone.
 
 ## API
 
@@ -191,20 +227,16 @@ Health check endpoint.
 
 ## Design Decisions
 
-| Decision                      | Rationale                                               |
-| ----------------------------- | ------------------------------------------------------- |
-| **Serializable transactions** | Prevents duplicate contacts from concurrent requests    |
-| **PostgreSQL advisory locks** | Keyed on hash(email:phone) for fine-grained concurrency |
-| **Email normalization**       | Case-insensitive matching (lowercase + trim)            |
-| **Phone normalization**       | Strip non-digits for consistent storage                 |
-| **Zod validation**            | Runtime type safety at the API boundary                 |
-| **Repository pattern**        | Decouples business logic from data access               |
-| **Prisma**                    | Type-safe ORM with excellent migration support          |
-| **Multi-stage Docker**        | Minimal production image (~150MB)                       |
-
-## License
-
-ISC
+| Decision                         | Rationale                                                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **Application-level async lock** | Serialises concurrent requests per (email, phone) pair; Prisma v7 driver adapters don't support interactive transactions |
+| **Email normalization**          | Case-insensitive matching (lowercase + trim)                                                                             |
+| **Phone normalization**          | Strip non-digits for consistent storage                                                                                  |
+| **Zod validation**               | Runtime type safety at the API boundary                                                                                  |
+| **Repository pattern**           | Decouples business logic from data access                                                                                |
+| **Prisma v7 + PrismaPg adapter** | Type-safe ORM; v7 requires driver adapter for direct DB connections                                                      |
+| **Multi-stage Docker**           | Minimal production image (~150MB)                                                                                        |
+| **Silent logger in tests**       | Logger uses noop functions when `NODE_ENV=test` for clean output                                                         |
 
 ## License
 
