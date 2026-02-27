@@ -1,0 +1,44 @@
+# ─────────────────────────────────────────────────────────
+#  docker-compose for local development
+# ─────────────────────────────────────────────────────────
+version: "3.9"
+
+services:
+  # ── PostgreSQL ────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: bitespeed-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bitespeed
+      POSTGRES_PASSWORD: bitespeed_secret
+      POSTGRES_DB: bitespeed
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bitespeed"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Application ───────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bitespeed-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://bitespeed:bitespeed_secret@db:5432/bitespeed?schema=public"
+      PORT: "3000"
+      NODE_ENV: "production"
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:

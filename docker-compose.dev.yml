@@ -1,0 +1,29 @@
+# ─────────────────────────────────────────────────────────
+#  docker-compose for local DB only (run app natively)
+#
+#  Usage: docker compose -f docker-compose.dev.yml up -d
+#  Then:  npm run dev
+# ─────────────────────────────────────────────────────────
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: bitespeed-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bitespeed
+      POSTGRES_PASSWORD: bitespeed_secret
+      POSTGRES_DB: bitespeed
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bitespeed"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata_dev:
