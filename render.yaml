@@ -1,0 +1,30 @@
+# ─────────────────────────────────────────────────────────
+#  Render Blueprint — Infrastructure as Code
+#  https://render.com/docs/blueprint-spec
+#
+#  Deploy with: "New" → "Blueprint" → point to this repo
+# ─────────────────────────────────────────────────────────
+
+services:
+  - type: web
+    name: bitespeed-api
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && node dist/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bitespeed-db
+          property: connectionString
+    healthCheckPath: /health
+    autoDeploy: true
+
+databases:
+  - name: bitespeed-db
+    plan: free
+    databaseName: bitespeed
+    region: oregon
