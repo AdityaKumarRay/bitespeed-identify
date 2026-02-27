@@ -1,0 +1,16 @@
+name: Keep Alive
+
+on:
+  schedule:
+    # Every 10 minutes
+    - cron: "*/10 * * * *"
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  ping:
+    name: Ping Render
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send request to keep instance alive
+        run: |
+          curl -fsS --max-time 60 "${{ secrets.RENDER_SERVICE_URL }}/health" || echo "Ping failed, service may be starting up"
