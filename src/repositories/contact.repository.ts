@@ -1,10 +1,20 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "../config/database";
 import type { Contact, LinkPrecedence } from "@prisma/client";
 
+/**
+ * Transaction client type — can be the base PrismaClient or a
+ * transaction client obtained from prisma.$transaction().
+ */
+type TxClient = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
+
 /* ─────────────────────────────────────────────────────────
  * Repository layer — thin data-access wrapper around Prisma.
- * Keeps SQL / ORM concerns out of the service layer.
+ * Every function accepts an optional `tx` param so it can
+ * participate in a transaction. Defaults to the global client.
  * ───────────────────────────────────────────────────────── */
 
 /**
@@ -14,6 +24,7 @@ import type { Contact, LinkPrecedence } from "@prisma/client";
 export async function findContactsByEmailOrPhone(
   email: string | null,
   phone: string | null,
+  tx: TxClient = prisma,
 ): Promise<Contact[]> {
   const conditions: Prisma.ContactWhereInput[] = [];
 
@@ -22,7 +33,7 @@ export async function findContactsByEmailOrPhone(
 
   if (conditions.length === 0) return [];
 
-  return prisma.contact.findMany({
+  return tx.contact.findMany({
     where: { OR: conditions },
     orderBy: { createdAt: "asc" },
   });
@@ -31,20 +42,26 @@ export async function findContactsByEmailOrPhone(
 /**
  * Create a new contact row.
  */
-export async function createContact(data: {
-  email: string | null;
-  phoneNumber: string | null;
-  linkedId: number | null;
-  linkPrecedence: LinkPrecedence;
-}): Promise<Contact> {
-  return prisma.contact.create({ data });
+export async function createContact(
+  data: {
+    email: string | null;
+    phoneNumber: string | null;
+    linkedId: number | null;
+    linkPrecedence: LinkPrecedence;
+  },
+  tx: TxClient = prisma,
+): Promise<Contact> {
+  return tx.contact.create({ data });
 }
 
 /**
  * Fetch all secondary contacts linked to a given primary ID.
  */
-export async function findSecondariesByPrimaryId(primaryId: number): Promise<Contact[]> {
-  return prisma.contact.findMany({
+export async function findSecondariesByPrimaryId(
+  primaryId: number,
+  tx: TxClient = prisma,
+): Promise<Contact[]> {
+  return tx.contact.findMany({
     where: { linkedId: primaryId, deletedAt: null },
     orderBy: { createdAt: "asc" },
   });
@@ -56,8 +73,9 @@ export async function findSecondariesByPrimaryId(primaryId: number): Promise<Con
 export async function demotePrimaryToSecondary(
   contactId: number,
   newPrimaryId: number,
+  tx: TxClient = prisma,
 ): Promise<Contact> {
-  return prisma.contact.update({
+  return tx.contact.update({
     where: { id: contactId },
     data: {
       linkedId: newPrimaryId,
@@ -73,8 +91,9 @@ export async function demotePrimaryToSecondary(
 export async function relinkSecondaries(
   oldPrimaryId: number,
   newPrimaryId: number,
+  tx: TxClient = prisma,
 ): Promise<void> {
-  await prisma.contact.updateMany({
+  await tx.contact.updateMany({
     where: { linkedId: oldPrimaryId, deletedAt: null },
     data: { linkedId: newPrimaryId },
   });
@@ -83,6 +102,11 @@ export async function relinkSecondaries(
 /**
  * Fetch a contact by ID.
  */
-export async function findContactById(id: number): Promise<Contact | null> {
-  return prisma.contact.findUnique({ where: { id } });
+export async function findContactById(
+  id: number,
+  tx: TxClient = prisma,
+): Promise<Contact | null> {
+  return tx.contact.findUnique({ where: { id } });
 }
+
+export type { TxClient };
