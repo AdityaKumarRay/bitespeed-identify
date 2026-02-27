@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import pg from "pg";
 import { env } from "./env";
 
 /**
@@ -16,7 +17,20 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient(): PrismaClient {
-  const adapter = new PrismaPg({ connectionString: env.DATABASE_URL });
+  // Render (and most cloud providers) require SSL for external connections.
+  // Detect remote hosts and enable SSL automatically.
+  const isRemote =
+    env.DATABASE_URL.includes("render.com") ||
+    env.DATABASE_URL.includes("neon.tech") ||
+    env.DATABASE_URL.includes("supabase.co") ||
+    env.DATABASE_URL.includes("sslmode=require");
+
+  const pool = new pg.Pool({
+    connectionString: env.DATABASE_URL,
+    ...(isRemote && { ssl: { rejectUnauthorized: false } }),
+  });
+
+  const adapter = new PrismaPg(pool);
   return new PrismaClient({ adapter });
 }
 
