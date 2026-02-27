@@ -12,13 +12,21 @@ import {
   findContactById,
   TxClient,
 } from "../repositories/contact.repository";
+import { identifyLock } from "../utils/async-lock";
 
 /* ──────────────────────────────────────────────────────────
  * identifyService — core identity reconciliation algorithm
  *
- * Wrapped in a Prisma interactive transaction with a Postgres
- * advisory lock keyed on a hash of (email, phone) to prevent
- * race conditions on concurrent identical requests.
+ * Serialised via an in-process async mutex keyed on the
+ * normalised (email, phone) pair. This prevents race conditions
+ * when concurrent identical or overlapping requests arrive.
+ *
+ * NOTE: Prisma v7 interactive transactions ($transaction with
+ * callback) are not supported with the PrismaPg driver adapter.
+ * For single-instance deployments (e.g. Render) an application-
+ * level lock is sufficient. For multi-instance deployments,
+ * upgrade to a distributed lock (Redis / Redlock) or run
+ * advisory locks via raw SQL on a separate pg Pool.
  *
  * Cases handled:
  *  1. No existing contacts → create new primary
@@ -33,20 +41,16 @@ export async function identifyService(input: IdentifyRequest): Promise<IdentifyR
 
   logger.debug("identifyService", { email, phone });
 
-  // Run the entire reconciliation inside an interactive transaction
-  return prisma.$transaction(
-    async (tx) => {
-      // Advisory lock: deterministic 32-bit hash from email+phone
-      const lockKey = hashCode(`${email ?? ""}:${phone ?? ""}`);
-      await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock($1)`, lockKey);
+  // Acquire a lock keyed on the normalised inputs to serialise
+  // overlapping requests that could conflict on the same data.
+  const lockKey = `identify:${email ?? ""}:${phone ?? ""}`;
+  const release = await identifyLock.acquire(lockKey);
 
-      return reconcile(email, phone, tx as unknown as TxClient);
-    },
-    {
-      isolationLevel: "Serializable",
-      timeout: 10_000, // 10 s max
-    },
-  );
+  try {
+    return await reconcile(email, phone, prisma as unknown as TxClient);
+  } finally {
+    release();
+  }
 }
 
 /* ──────────────────────────────────────────────────────────
