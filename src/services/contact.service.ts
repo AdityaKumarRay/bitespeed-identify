@@ -39,7 +39,7 @@ export async function identifyService(input: IdentifyRequest): Promise<IdentifyR
   const email = normalizeEmail(input.email);
   const phone = normalizePhone(input.phoneNumber);
 
-  logger.debug("identifyService", { email, phone });
+  logger.debug({ email, phone }, "identifyService");
 
   // Acquire a lock keyed on the normalised inputs to serialise
   // overlapping requests that could conflict on the same data.

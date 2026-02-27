@@ -10,7 +10,7 @@ app.use(express.json());
 
 // Simple request logger
 app.use((req: Request, _res: Response, next: NextFunction) => {
-  logger.info(`${req.method} ${req.path}`);
+  logger.info({ method: req.method, path: req.path }, "incoming request");
   next();
 });
 
@@ -24,12 +24,12 @@ app.use("/", contactRouter);
 /* ── Global error handler ─────────────────────────────── */
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   if (err instanceof AppError) {
-    logger.warn(`[${err.statusCode}] ${err.message}`);
+    logger.warn({ statusCode: err.statusCode }, err.message);
     res.status(err.statusCode).json({ error: err.message });
     return;
   }
 
-  logger.error(`Unhandled error: ${err.message}`, err.stack);
+  logger.error({ err }, "Unhandled error");
   res.status(500).json({ error: "Internal Server Error" });
 });
 

@@ -37,7 +37,7 @@ export async function identifyController(
         .join("; ");
       next(new BadRequestError(messages));
     } else {
-      logger.error("identifyController error", error);
+      logger.error({ err: error }, "identifyController error");
       next(error);
     }
   }

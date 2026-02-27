@@ -1,34 +1,25 @@
-/**
- * Minimal structured logger.
- * Replace with winston/pino in production if needed.
- *
- * Silenced in test environment to keep test output clean.
- */
+import pino from "pino";
 
 const isTest = process.env.NODE_ENV === "test";
-const noop = () => {};
+const isDev = process.env.NODE_ENV === "development";
 
-export const logger = {
-  info: isTest
-    ? noop
-    : (message: string, ...args: unknown[]) => {
-        console.log(`[INFO]  ${new Date().toISOString()} — ${message}`, ...args);
+/**
+ * Structured logger powered by pino.
+ *
+ * • Development: pretty-printed, colorised via pino-pretty
+ * • Production:  JSON lines (machine-parseable, ideal for log aggregators)
+ * • Test:        silent to keep test output clean
+ */
+export const logger = pino({
+  level: isTest ? "silent" : isDev ? "debug" : "info",
+  ...(isDev && {
+    transport: {
+      target: "pino-pretty",
+      options: {
+        colorize: true,
+        translateTime: "SYS:standard",
+        ignore: "pid,hostname",
       },
-  warn: isTest
-    ? noop
-    : (message: string, ...args: unknown[]) => {
-        console.warn(`[WARN]  ${new Date().toISOString()} — ${message}`, ...args);
-      },
-  error: isTest
-    ? noop
-    : (message: string, ...args: unknown[]) => {
-        console.error(`[ERROR] ${new Date().toISOString()} — ${message}`, ...args);
-      },
-  debug: isTest
-    ? noop
-    : (message: string, ...args: unknown[]) => {
-        if (process.env.NODE_ENV === "development") {
-          console.debug(`[DEBUG] ${new Date().toISOString()} — ${message}`, ...args);
-        }
-      },
-};
+    },
+  }),
+});

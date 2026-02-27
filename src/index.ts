@@ -5,12 +5,12 @@ import { prisma } from "./config/database";
 import { logger } from "./utils/logger";
 
 const server = app.listen(env.PORT, () => {
-  logger.info(`[bitespeed] Server running in ${env.NODE_ENV} mode on port ${env.PORT}`);
+  logger.info({ mode: env.NODE_ENV, port: env.PORT }, "Server running");
 });
 
 /* ── Graceful shutdown ─────────────────────────────────── */
 const shutdown = async (signal: string) => {
-  logger.info(`Received ${signal}. Shutting down gracefully…`);
+  logger.info({ signal }, "Shutting down gracefully…");
   server.close(async () => {
     await prisma.$disconnect();
     logger.info("Database disconnected. Bye!");
