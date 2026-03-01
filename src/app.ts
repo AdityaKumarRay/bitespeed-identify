@@ -1,9 +1,17 @@
 import express, { Request, Response, NextFunction } from "express";
+import { readFileSync } from "fs";
+import { join } from "path";
 import { contactRouter } from "./routes/contact.routes";
 import { AppError } from "./utils/errors";
 import { logger } from "./utils/logger";
 
 const app = express();
+
+/* ── Landing page (read once at startup) ──────────────── */
+const landingPage = readFileSync(
+  join(__dirname, "public", "index.html"),
+  "utf-8",
+);
 
 /* ── Middleware ────────────────────────────────────────── */
 app.use(express.json());
@@ -15,6 +23,10 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 });
 
 /* ── Routes ───────────────────────────────────────────── */
+app.get("/", (_req: Request, res: Response) => {
+  res.type("html").send(landingPage);
+});
+
 app.get("/health", (_req: Request, res: Response) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });

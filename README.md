@@ -2,7 +2,7 @@
 
 A backend service that identifies and consolidates customer contact information across multiple purchases on FluxKart.com.
 
-**Live:** https://bitespeed-api-ikhq.onrender.com
+**Live:** https://bitespeed-identify.iamaditya.me (also via https://bitespeed-api-ikhq.onrender.com)
 
 ## Tech Stack
 
@@ -149,7 +149,7 @@ npm run test:integration
 
 ```bash
 # Against live deployment
-npm run test:smoke -- https://bitespeed-api-ikhq.onrender.com
+npm run test:smoke -- https://bitespeed-identify.iamaditya.me
 
 # Against local dev server
 npm run test:smoke
